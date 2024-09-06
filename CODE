@@ -1,0 +1,157 @@
+import java.io.*;
+import java.util.PriorityQueue;
+
+class HuffmanNode implements Comparable<HuffmanNode> {
+    char symbol;
+    int frequency;
+    HuffmanNode left, right;
+
+    public HuffmanNode(char symbol, int frequency) {
+        this.symbol = symbol;
+        this.frequency = frequency;
+        this.left = this.right = null;
+    }
+
+    @Override
+    public int compareTo(HuffmanNode node) {
+        return this.frequency - node.frequency;
+    }
+}
+
+class HuffmanCode {
+    char symbol;
+    String code;
+
+    public HuffmanCode(char symbol, String code) {
+        this.symbol = symbol;
+        this.code = code;
+    }
+}
+
+public class HuffmanCompression {
+
+    public static HuffmanNode buildHuffmanTree(char[] symbols, int[] frequencies) {
+        PriorityQueue<HuffmanNode> minHeap = new PriorityQueue<>();
+
+        for (int i = 0; i < symbols.length; i++) {
+            minHeap.offer(new HuffmanNode(symbols[i], frequencies[i]));
+        }
+
+        while (minHeap.size() > 1) {
+            HuffmanNode left = minHeap.poll();
+            HuffmanNode right = minHeap.poll();
+
+            HuffmanNode top = new HuffmanNode('$', left.frequency + right.frequency);
+            top.left = left;
+            top.right = right;
+
+            minHeap.offer(top);
+        }
+
+        return minHeap.poll();
+    }
+
+    public static void generateCodes(HuffmanNode root, String code, HuffmanCode[] codes, int[] index) {
+        if (root.left == null && root.right == null) {
+            codes[index[0]] = new HuffmanCode(root.symbol, code);
+            index[0]++;
+            return;
+        }
+
+        if (root.left != null) {
+            generateCodes(root.left, code + "0", codes, index);
+        }
+
+        if (root.right != null) {
+            generateCodes(root.right, code + "1", codes, index);
+        }
+    }
+
+    public static void writeCompressedData(File outputFile, HuffmanCode[] codes, File inputFile) throws IOException {
+        BufferedReader br = new BufferedReader(new FileReader(inputFile));
+        BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile));
+        int c;
+        while ((c = br.read()) != -1) {
+            char symbol = (char) c;
+            for (HuffmanCode code : codes) {
+                if (code != null && code.symbol == symbol) {
+                    bw.write(code.code);
+                    break;
+                }
+            }
+        }
+        br.close();
+        bw.close();
+    }
+
+    public static void writeCodesToFile(File codesFile, HuffmanCode[] codes) throws IOException {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(codesFile));
+        for (HuffmanCode code : codes) {
+            if (code != null) {
+                bw.write(code.symbol + " " + code.code + "\n");
+            }
+        }
+        bw.close();
+    }
+
+    public static int getFileSize(File file) throws IOException {
+        return (int) file.length();
+    }
+
+    public static void main(String[] args) throws IOException {
+        if (args.length != 2) {
+            System.err.println("Usage: java HuffmanCompression <input-file> <output-file>");
+            return;
+        }
+
+        File inputFile = new File(args[0]);
+        File compressedFile = new File(args[1]);
+
+        int originalFileSize = getFileSize(inputFile);
+        int bitSizeOriginal = originalFileSize * 7;
+
+        char[] symbols = new char[256];
+        int[] frequencies = new int[256];
+        BufferedReader br = new BufferedReader(new FileReader(inputFile));
+
+        int c, numSymbols = 0;
+        while ((c = br.read()) != -1) {
+            char symbol = (char) c;
+            boolean found = false;
+            for (int i = 0; i < numSymbols; i++) {
+                if (symbols[i] == symbol) {
+                    frequencies[i]++;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                symbols[numSymbols] = symbol;
+                frequencies[numSymbols] = 1;
+                numSymbols++;
+            }
+        }
+        br.close();
+
+        char[] finalSymbols = new char[numSymbols];
+        int[] finalFrequencies = new int[numSymbols];
+        System.arraycopy(symbols, 0, finalSymbols, 0, numSymbols);
+        System.arraycopy(frequencies, 0, finalFrequencies, 0, numSymbols);
+
+        HuffmanNode root = buildHuffmanTree(finalSymbols, finalFrequencies);
+        HuffmanCode[] codes = new HuffmanCode[256];
+        int[] codesIndex = {0};
+        generateCodes(root, "", codes, codesIndex);
+
+        writeCodesToFile(new File("codes.txt"), codes);
+        writeCompressedData(compressedFile, codes, inputFile);
+
+        int compressedFileSize = getFileSize(compressedFile);
+
+        System.out.println("Original file size (ASCII): " + originalFileSize + " bytes");
+        System.out.println("Original file size (7-bit): " + bitSizeOriginal + " bits");
+        System.out.println("Compressed file size: " + compressedFileSize + " bytes");
+        System.out.println("File compressed successfully. Codes are stored in codes.txt.");
+    }
+}
